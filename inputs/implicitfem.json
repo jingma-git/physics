@@ -9,5 +9,5 @@
 			"filename" : "inputs/input.mesh"
 		}
 	],
-        "output_fname" : "output/implicitfem/implicit-%02d.%03d.obj"
+        "output_fname" : "output/implicitfem/implicit_green-%02d.%03d.obj"
 }

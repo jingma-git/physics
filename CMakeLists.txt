@@ -22,3 +22,7 @@ add_executable(implicitfem implicitfem.h implicitfem.cpp jsoncpp.cpp)
 # target_link_libraries(partviewer glut GL GLU) 
 
 
+add_executable(delta "delta/test.cpp")
+add_executable(svd_dd "delta/svd_dd.cpp")
+target_link_libraries(svd_dd Eigen3::Eigen)
+

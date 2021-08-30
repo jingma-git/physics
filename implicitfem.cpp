@@ -10,7 +10,21 @@ void polar(const Eigen::Matrix3d &F, Eigen::Matrix3d &Q)
     Eigen::JacobiSVD<Eigen::Matrix3d> svd(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::Matrix3d U = svd.matrixU();
     Eigen::Matrix3d V = svd.matrixV();
+    // auto lamda = svd.singularValues();
+    // cout << "lamda=" << lamda.transpose() << endl;
     Q = U * V.transpose();
+}
+
+void polar(const Eigen::Matrix3d &F, Eigen::Matrix3d &Q, Eigen::Matrix3d &S)
+{
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Matrix3d U = svd.matrixU();
+    Eigen::Matrix3d V = svd.matrixV();
+    // auto lamda = svd.singularValues();
+    // cout << "lamda=" << lamda.transpose() << endl;
+    Q = U * V.transpose();
+    S.setZero();
+    S.diagonal() = svd.singularValues();
 }
 
 void initialize(Object &obj, const SimulationParameters &params)
@@ -216,7 +230,8 @@ int main(int argc, char *argv[])
                 F = X * e->basis;
                 polar(F, Q);
                 Ftide = Q.transpose() * F;
-                strain = 0.5 * (Ftide + Ftide.transpose()) - I;
+                // strain = 0.5 * (Ftide + Ftide.transpose()) - I; //co-rotated strain measure
+                strain = F.transpose() * F - I; // Green strain measure
                 stress = params.lambda * strain.trace() * I + 2 * params.mu * strain;
                 // assert(abs((Q - Q.transpose()).sum()) < 1e-8);
                 obj->particles[(*e)[0]].frc += Q * (stress)*e->normals[0] / 6.0;
