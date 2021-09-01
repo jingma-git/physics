@@ -1,6 +1,5 @@
 #include "implicitfem.h"
 
-using namespace Eigen;
 using namespace std;
 
 static const double FEPS = 1e-6;
@@ -10,21 +9,7 @@ void polar(const Eigen::Matrix3d &F, Eigen::Matrix3d &Q)
     Eigen::JacobiSVD<Eigen::Matrix3d> svd(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::Matrix3d U = svd.matrixU();
     Eigen::Matrix3d V = svd.matrixV();
-    // auto lamda = svd.singularValues();
-    // cout << "lamda=" << lamda.transpose() << endl;
     Q = U * V.transpose();
-}
-
-void polar(const Eigen::Matrix3d &F, Eigen::Matrix3d &Q, Eigen::Matrix3d &S)
-{
-    Eigen::JacobiSVD<Eigen::Matrix3d> svd(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d U = svd.matrixU();
-    Eigen::Matrix3d V = svd.matrixV();
-    // auto lamda = svd.singularValues();
-    // cout << "lamda=" << lamda.transpose() << endl;
-    Q = U * V.transpose();
-    S.setZero();
-    S.diagonal() = svd.singularValues();
 }
 
 void initialize(Object &obj, const SimulationParameters &params)
@@ -35,6 +20,7 @@ void initialize(Object &obj, const SimulationParameters &params)
         p->rest = p->pos;
     }
 
+    double volume = 0;
     for (std::vector<Element>::iterator e = obj.elements.begin(); e != obj.elements.end(); e++)
     {
         Eigen::Vector3d &x0 = obj.particles[(*e)[0]].pos;
@@ -49,9 +35,11 @@ void initialize(Object &obj, const SimulationParameters &params)
 
         e->basis << x1 - x0, x2 - x0, x3 - x0;
         double det = e->basis.determinant();
+        volume += det / 6.0;
         double mass = params.density * det / 24.0;
         e->basis = e->basis.inverse().eval();
 
+        // distribute the tet mass equally to four nodes
         obj.particles[(*e)[0]].mass += mass;
         obj.particles[(*e)[1]].mass += mass;
         obj.particles[(*e)[2]].mass += mass;
@@ -77,31 +65,11 @@ void initialize(Object &obj, const SimulationParameters &params)
             }
         }
     }
+
+    cout << "nods=" << obj.particles.size() << " tets=" << obj.elements.size() << endl;
+    cout << "volume=" << volume << endl;
 }
 
-// https://en.wikipedia.org/wiki/Conjugate_gradient_method
-void daxpy(int n, double alpha, Eigen::Vector3d *x, Eigen::Vector3d *y)
-{
-    for (unsigned int i = 0; i < n; i++)
-        y[i] += alpha * x[i];
-}
-
-double ddot(int n, Eigen::Vector3d *x, Eigen::Vector3d *y)
-{
-    double val = 0;
-    for (unsigned int i = 0; i < n; i++)
-        val += x[i].dot(y[i]);
-    return val;
-}
-
-void dcopy(int n, Eigen::Vector3d *x, Eigen::Vector3d *y)
-{
-    for (unsigned int i = 0; i < n; i++)
-        y[i] = x[i];
-}
-
-// A*x
-// rhs: (M+K*dt^2+D) * V(t+1)
 void mvmul(const SimulationParameters &params, const Object &obj, const Eigen::Vector3d *x, Eigen::Vector3d *y)
 {
     // system matrix
@@ -126,6 +94,27 @@ void mvmul(const SimulationParameters &params, const Object &obj, const Eigen::V
     }
 }
 
+void daxpy(int n, double alpha, Eigen::Vector3d *x, Eigen::Vector3d *y)
+{
+    for (unsigned int i = 0; i < n; i++)
+        y[i] += alpha * x[i];
+}
+
+double ddot(int n, Eigen::Vector3d *x, Eigen::Vector3d *y)
+{
+    double val = 0;
+    for (unsigned int i = 0; i < n; i++)
+        val += x[i].dot(y[i]);
+    return val;
+}
+
+void dcopy(int n, Eigen::Vector3d *x, Eigen::Vector3d *y)
+{
+    for (unsigned int i = 0; i < n; i++)
+        y[i] = x[i];
+}
+
+// https://en.wikipedia.org/wiki/Conjugate_gradient_method
 void solve(const SimulationParameters &params, const Object &obj, const Eigen::Vector3d *b, Eigen::Vector3d *x)
 {
     // b[i] = mass * vel + dt * force
@@ -182,7 +171,6 @@ int main(int argc, char *argv[])
     double time = 0;
     int frame = 0;
     double frameTime = -1.0;
-    double dt = params.dt;
 
     for (std::vector<Object>::iterator obj = objects.begin(); obj != objects.end(); obj++)
     {
@@ -203,51 +191,52 @@ int main(int argc, char *argv[])
             }
         }
 
-        // take a timestep
+        // takes a timestep
         for (std::vector<Object>::iterator obj = objects.begin(); obj != objects.end(); obj++)
         {
-            // apply gravity
+            // initialize force accumulator, apply gravity
             for (std::vector<Particle>::iterator p = obj->particles.begin(); p != obj->particles.end(); p++)
             {
-                p->frc.setZero();
+                p->frc = Eigen::Vector3d::Zero();
                 p->frc[2] = -9.8 * p->mass;
             }
 
-            // compute force, only consider elastic force, ignore damping
+            // comupte and accumulate spring forces
             for (std::vector<Element>::iterator e = obj->elements.begin(); e != obj->elements.end(); e++)
             {
-                Matrix3d X, F, Q, Ftide, strain, stress;
-                Matrix3d I;
-                I = Matrix3d::Identity();
-
-                // deformation gradient, stress, strain
-                Vector3d &x0 = obj->particles[(*e)[0]].pos;
-                Vector3d &x1 = obj->particles[(*e)[1]].pos;
-                Vector3d &x2 = obj->particles[(*e)[2]].pos;
-                Vector3d &x3 = obj->particles[(*e)[3]].pos;
+                Eigen::Matrix3d X, F, Q, Ftilde, strain, stress;
+                Eigen::Vector3d &x0 = obj->particles[(*e)[0]].pos;
+                Eigen::Vector3d &x1 = obj->particles[(*e)[1]].pos;
+                Eigen::Vector3d &x2 = obj->particles[(*e)[2]].pos;
+                Eigen::Vector3d &x3 = obj->particles[(*e)[3]].pos;
 
                 X << x1 - x0, x2 - x0, x3 - x0;
                 F = X * e->basis;
+                // co-rotated linear easticity
                 polar(F, Q);
-                Ftide = Q.transpose() * F;
-                // strain = 0.5 * (Ftide + Ftide.transpose()) - I; //co-rotated strain measure
-                strain = F.transpose() * F - I; // Green strain measure
-                stress = params.lambda * strain.trace() * I + 2 * params.mu * strain;
-                // assert(abs((Q - Q.transpose()).sum()) < 1e-8);
-                obj->particles[(*e)[0]].frc += Q * (stress)*e->normals[0] / 6.0;
-                obj->particles[(*e)[1]].frc += Q * (stress)*e->normals[1] / 6.0;
-                obj->particles[(*e)[2]].frc += Q * (stress)*e->normals[2] / 6.0;
-                obj->particles[(*e)[3]].frc += Q * (stress)*e->normals[3] / 6.0;
+                Ftilde = Q.transpose() * F;
+                strain = 0.5 * (Ftilde + Ftilde.transpose()) - Eigen::Matrix3d::Identity();
+                stress = Q * (params.lambda * strain.trace() * Eigen::Matrix3d::Identity() + 2 * params.mu * strain);
+
+                // // St. Venant-Kirchhoff
+                // strain = 0.5 * (F.transpose() * F - Eigen::Matrix3d::Identity());
+                // stress = strain * (params.lambda * strain.trace() * Eigen::Matrix3d::Identity() + 2 * params.mu * strain);
+
+                obj->particles[(*e)[0]].frc += stress * e->normals[0] / 6.0;
+                obj->particles[(*e)[1]].frc += stress * e->normals[1] / 6.0;
+                obj->particles[(*e)[2]].frc += stress * e->normals[2] / 6.0;
+                obj->particles[(*e)[3]].frc += stress * e->normals[3] / 6.0;
+
+                e->Q = Q;
             }
 
-            // implicit time integration: solve Ax=b where x=v(t+1)
+            // time integration
+            Eigen::Vector3d *x = new Eigen::Vector3d[obj->particles.size()];
+            Eigen::Vector3d *b = new Eigen::Vector3d[obj->particles.size()];
             int i = 0;
-            Vector3d *x = new Vector3d[obj->particles.size()];
-            Vector3d *b = new Vector3d[obj->particles.size()];
             for (std::vector<Particle>::iterator p = obj->particles.begin(); p != obj->particles.end(); p++, i++)
             {
-                // rhs M*v(t) + dt * F(t)
-                b[i] = p->mass * p->vel + dt * p->frc;
+                b[i] = p->mass * p->vel + params.dt * p->frc;
                 x[i] = p->vel;
             }
 
@@ -266,12 +255,18 @@ int main(int argc, char *argv[])
                     p->vel[2] = 0.0;
                 }
             }
+            delete[] x;
+            delete[] b;
         }
 
         time += params.dt;
         frameTime -= params.dt;
     }
 }
+
+/////////////////////////////////////////
+// I/O
+/////////////////////////////////////////
 
 #include "json/json.h"
 #include <fstream>

@@ -18,6 +18,7 @@ class Element
 public:
     Eigen::Matrix3d basis;
     Eigen::Vector3d normals[4]; // normals of opposite faces, for computing forces
+    double vol;
 
     Eigen::Matrix3d stiffness[16];
     Eigen::Matrix3d Q;

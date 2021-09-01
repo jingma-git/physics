@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.0)
 project(physics)
 
 set(CMAKE_BUILD_TYPE RELEASE)
+
 if (POLICY CMP0072)
   set(OpenGL_GL_PREFERENCE LEGACY)
 endif()
@@ -13,16 +14,24 @@ if(Eigen3_FOUND)
     include_directories(${EIGEN3_INCLUDE_DIR})
 endif()
 
+add_subdirectory(autodiff)
+
 # add_executable(rigidbody rigidbody.h rigidbody.cpp jsoncpp.cpp)
 # add_executable(explicitfem explicitfem.h explicitfem.cpp jsoncpp.cpp)
-add_executable(implicitfem implicitfem.h implicitfem.cpp jsoncpp.cpp)
+# add_executable(implicitfem implicitfem.h implicitfem.cpp jsoncpp.cpp)
 # add_executable(fluid fluid.h fluid.cpp jsoncpp.cpp)
 # add_executable(springmass springmass.h springmass.cpp springmass.cpp jsoncpp.cpp)
 # add_executable(partviewer partviewer.cpp)
 # target_link_libraries(partviewer glut GL GLU) 
 
 
-add_executable(delta "delta/test.cpp")
-add_executable(svd_dd "delta/svd_dd.cpp")
-target_link_libraries(svd_dd Eigen3::Eigen)
+# add_executable(delta "delta/test.cpp")
+# add_executable(svd_dd "delta/svd_dd.cpp")
+# target_link_libraries(svd_dd Eigen3::Eigen)
 
+add_executable(main "main.cpp")
+target_link_libraries(main Eigen3::Eigen)
+
+
+add_executable(cons_law "constitutive_law.cpp")
+target_link_libraries(cons_law autodiff Eigen3::Eigen)

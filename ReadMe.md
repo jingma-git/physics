@@ -3,7 +3,7 @@
 
 # Overview 
 1. (Siggraph Course 2019) https://cal.cs.umbc.edu/Courses/PhysicsBasedAnimation/
-2. (Siggraph Course 2019) Practical course on computing derivatives in code: https://dl.acm.org/doi/10.1145/3305366.3328073, Practical notes on implementating derivatives https://www.cs.ucr.edu/~craigs/research.html
+2. (Siggraph Course 2019) Practical course on computing derivatives in code: https://dl.acm.org/doi/10.1145/3305366.3328073, Practical notes on implementating derivatives https://www.cs.ucr.edu/~craigs/research.html, https://www.cnblogs.com/dohkoai/p/14613185.html
 
 # Finite Element Method for 3D Deformable Solids 
 1. FEM for 3D deformable solids (Siggraph Course 2012): https://dl.acm.org/doi/10.1145/2343483.2343501
