@@ -25,13 +25,15 @@ int main()
     MatT x = MatT::Random();
     MatrixXd jac(12, 1);
     MatrixXd hes(12, 12);
-
+    double val;
+    tet_linear_(&val, x.data(), dm.data(), &vol, &lam, &miu);
     tet_linear_jac_(jac.data(), x.data(), dm.data(), &vol, &lam, &miu);
     tet_linear_hes_(hes.data(), x.data(), dm.data(), &vol, &lam, &miu);
 
     VectorXd X = Map<VectorXd>(x.data(), 12, 1);
     VectorXd X0 = Map<VectorXd>(Xini.data(), 12, 1);
     double err = (hes * (X - X0) - jac).norm();
+    cout << "energy:" << val << endl;
     cout << "err:" << err << endl;
     return 0;
 }

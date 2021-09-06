@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(physics)
 
+
 set(CMAKE_BUILD_TYPE RELEASE)
 
 if (POLICY CMP0072)
@@ -14,7 +15,8 @@ if(Eigen3_FOUND)
     include_directories(${EIGEN3_INCLUDE_DIR})
 endif()
 
-add_subdirectory(autodiff)
+include_directories(./)
+add_subdirectory(core)
 
 # add_executable(rigidbody rigidbody.h rigidbody.cpp jsoncpp.cpp)
 # add_executable(explicitfem explicitfem.h explicitfem.cpp jsoncpp.cpp)
@@ -32,6 +34,16 @@ add_subdirectory(autodiff)
 add_executable(main "main.cpp")
 target_link_libraries(main Eigen3::Eigen)
 
+add_executable(test_lapack "test_lapack.cpp")
+target_link_libraries(test_lapack lapack)
+
 
 add_executable(cons_law "constitutive_law.cpp")
 target_link_libraries(cons_law autodiff Eigen3::Eigen)
+
+add_executable(fem simplefem.cpp jsoncpp.cpp)
+target_link_libraries(fem magic)
+
+
+add_executable(fluid "fluid.cpp")
+target_link_libraries(fluid Eigen3::Eigen)

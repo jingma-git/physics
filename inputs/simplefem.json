@@ -1,0 +1,11 @@
+{
+	"dt" : 0.1,
+	"total_frame" : 200,
+	"yong_modulus" : 1e4,
+	"poisson_ratio" : 0.45,
+    "we": 1.0,
+	"wg": 2.0,
+	"tets" : "inputs/beam.vtk",
+	"fixed" : "inputs/beam_fixed.fv",
+    "output_folder" : "output/simplefem/"
+}
