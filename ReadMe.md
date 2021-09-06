@@ -13,6 +13,7 @@
 
 # Material Point Method
 1. The Material Point Method for Simulating Continuum Materials: https://dl.acm.org/doi/10.1145/2897826.2927348 
+2. https://yuanming.taichi.graphics/publication/2019-mpm-tutorial/
 
 # Rigid Body
 https://www.toptal.com/game/video-game-physics-part-iii-constrained-rigid-body-simulation

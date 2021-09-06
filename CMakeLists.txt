@@ -47,3 +47,7 @@ target_link_libraries(fem magic)
 
 add_executable(fluid "fluid.cpp")
 target_link_libraries(fluid Eigen3::Eigen)
+
+
+add_executable(mpm "mpm.cpp")
+target_link_libraries(mpm Eigen3::Eigen)
