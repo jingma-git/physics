@@ -1,0 +1,7 @@
+{
+	"dt" : 0.001,
+    "ws": 1.0,
+	"mesh" : "inputs/plane.obj",
+	"fixed" : "inputs/plane_fixed.fv",
+    "output_folder" : "output/clothbw/"
+}

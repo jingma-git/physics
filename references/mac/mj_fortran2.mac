@@ -1,0 +1,42 @@
+load(f90)$
+
+declare_matrix(name, m) := block(
+	[size],
+	size: matrix_size(m),
+	sconcat("REAL(KIND=8) ", name, "(", size[1], ",", size[2], ")")
+)$
+
+
+hj_fortran2(func, func_out, func_in) :=
+block(
+[rtn, in_names],
+	header: sconcat("SUBROUTINE ", func, "(", func_out),
+	in_names: [],
+	for i:1 thru length(func_in) do
+	block(
+	[m],
+		m: func_in[i],
+		header: sconcat(header, ",", op(m[1, 1]))
+	),
+	header: sconcat(header, ")"),
+	print(header),
+	print("IMPLICIT NONE"),
+	with_stdout("/dev/null", rtn: optimize(apply(func, func_in))),
+	if op(rtn) # block then rtn: [[], rtn],
+	block(
+	[block_args],
+		block_args: args(rtn),
+		rtn: block_args[length(block_args)],
+		print(declare_matrix(func_out, rtn))
+	),
+f90(func_out=rtn),
+print("END")
+)$
+
+val_jac_hes_to_f90(func, func_in) :=
+block(
+[p, jac, hes],
+	hj_fortran2(func, 'val, func_in),
+	jac: concat(func, "_jac"),
+return()
+)$

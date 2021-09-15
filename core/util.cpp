@@ -9,9 +9,4 @@ namespace egl
         Eigen::Matrix3d V = svd.matrixV();
         Q = U * V.transpose();
     }
-
-    Eigen::Vector3d cross(const Eigen::Vector3d &v1, const Eigen::Vector3d &v2)
-    {
-        return v1.cross(v2);
-    }
 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10.0)
 project(physics)
 
 
-set(CMAKE_BUILD_TYPE RELEASE)
+# set(CMAKE_BUILD_TYPE RELEASE)
 
 if (POLICY CMP0072)
   set(OpenGL_GL_PREFERENCE LEGACY)
@@ -51,3 +51,9 @@ target_link_libraries(fluid Eigen3::Eigen)
 
 add_executable(mpm "mpm.cpp")
 target_link_libraries(mpm Eigen3::Eigen)
+
+add_executable(clothsim "clothsim.cpp")
+target_link_libraries(clothsim magic)
+
+add_executable(clothbw clothbw.cpp jsoncpp.cpp)
+target_link_libraries(clothbw magic)

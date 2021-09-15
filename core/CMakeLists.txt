@@ -1,5 +1,7 @@
 
 list(APPEND CMAKE_CXX_FLAGS "-fopenmp -std=c++11 -fpermissive")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/;${CMAKE_MODULE_PATH}")
+message("-- CMAKE_CURRENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}")
 
 # find the required packages
 find_package(OpenMP REQUIRED)
@@ -19,8 +21,17 @@ if(Boost_FOUND)
     message("-- Boost_LIB ${Boost_LIBRARIES}")
 endif()
 
+# GMP
+find_package(GMP REQUIRED)
+
 add_subdirectory(autodiff)
+
+include_directories(external/CGAL/include)
 
 file(GLOB src "*.cpp")
 add_library(magic ${src})
-target_link_libraries(magic autodiff Eigen3::Eigen OpenMP::OpenMP_CXX ${Boost_LIBRARIES})
+target_link_libraries(magic autodiff 
+                             Eigen3::Eigen 
+                             OpenMP::OpenMP_CXX 
+                             ${Boost_LIBRARIES}
+                             ${GMP_LIBRARIES})

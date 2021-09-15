@@ -129,4 +129,55 @@ namespace egl
         double w_;
         Eigen::VectorXd force_;
     };
+
+    class bw98_stretch_energy : public Functional<double>
+    {
+    public:
+        bw98_stretch_energy(const matd_t &nods, const mati_t &cell, const double w);
+        size_t Dof() const { return dof_; }
+        int Val(const double *x, double *val) const;
+        int Gra(const double *x, double *gra) const;
+        int Hes(const double *x, std::vector<Eigen::Triplet<double>> *hes) const;
+
+    private:
+        const size_t dof_;
+        double w_;
+        matd_t Dm_;
+        std::vector<double> area_;
+        const mati_t &tris_;
+    };
+
+    class bw98_shear_energy : public Functional<double>
+    {
+    public:
+        bw98_shear_energy(const matd_t &nods, const mati_t &cell, const double w);
+        size_t Dof() const { return dof_; }
+        int Val(const double *x, double *val) const;
+        int Gra(const double *x, double *gra) const;
+        int Hes(const double *x, std::vector<Eigen::Triplet<double>> *hes) const;
+
+    private:
+        const size_t dof_;
+        double w_;
+        matd_t Dm_;
+        std::vector<double> area_;
+        const mati_t &tris_;
+    };
+
+    class surf_bending_potential : public Functional<double>
+    {
+    public:
+        surf_bending_potential(const mati_t &diams, const matd_t &nods, const double w);
+        size_t Dof() const { return dof_; }
+        int Val(const double *x, double *val) const;
+        int Gra(const double *x, double *gra) const;
+        int Hes(const double *x, std::vector<Eigen::Triplet<double>> *hes) const;
+        void ResetWeight(const double w) { w_ = w; }
+
+    private:
+        const size_t dof_;
+        double w_;
+        const mati_t &diams_;
+        std::vector<double> len_, area_, angle_;
+    };
 }

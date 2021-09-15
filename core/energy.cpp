@@ -16,6 +16,26 @@ namespace egl
         void tet_linear_(double *val, const double *x, const double *Dm, const double *vol, const double *lam, const double *miu);
         void tet_linear_jac_(double *jac, const double *x, const double *Dm, const double *vol, const double *lam, const double *miu);
         void tet_linear_hes_(double *hes, const double *x, const double *Dm, const double *vol, const double *lam, const double *miu);
+
+        void bw98_stretch_(double *val, const double *x, const double *invUV, const double *area);
+        void bw98_stretch_jac_(double *jac, const double *x, const double *invUV, const double *area);
+        void bw98_stretch_hes_(double *hes, const double *x, const double *invUV, const double *area);
+
+        void bw98_shear_(double *val, const double *x, const double *invUV, const double *area);
+        void bw98_shear_jac_(double *jac, const double *x, const double *invUV, const double *area);
+        void bw98_shear_hes_(double *hes, const double *x, const double *invUV, const double *area);
+
+        void calc_edge_length_(double *val, const double *x);
+        void calc_edge_length_jac_(double *jac, const double *x);
+        void calc_edge_length_hes_(double *hes, const double *x);
+
+        void calc_dih_angle_(double *val, const double *x);
+        void calc_dih_angle_jac_(double *jac, const double *x);
+        void calc_dih_angle_hes_(double *hes, const double *x);
+
+        void surf_bending_(double *val, const double *x, const double *d, const double *l, const double *area);
+        void surf_bending_jac_(double *jac, const double *x, const double *d, const double *l, const double *area);
+        void surf_bending_hes_(double *hes, const double *x, const double *d, const double *l, const double *area);
     }
 
     momentum_potential_imp_euler::momentum_potential_imp_euler(const matd_t &nods,
@@ -405,4 +425,310 @@ namespace egl
         return 0;
     }
 
+    bw98_stretch_energy::bw98_stretch_energy(const matd_t &nods, const mati_t &tris, const double w)
+        : dof_(nods.size()), w_(w), tris_(tris)
+    {
+        Dm_.resize(4, tris.cols());
+        area_.resize(tris.cols());
+        matd_t O(3, tris.cols()), N(3, tris.cols()), T(3, tris.cols()), B(3, tris.cols());
+        face_normal(nods, tris, N, false);
+        for (size_t i = 0; i < tris.cols(); ++i)
+        {
+            area_[i] = 0.5 * N.col(i).norm();
+            N.col(i).normalize();
+            O.col(i) = (nods.col(tris(0, i)) + nods.col(tris(1, i)) + nods.col(tris(2, i))) / 3.0;
+            T.col(i) = nods.col(tris(1, i)) - nods.col(tris(0, i));
+            T.col(i).normalize();
+            B.col(i) = cross(N.col(i), T.col(i));
+            B.col(i).normalize();
+        }
+
+        for (size_t i = 0; i < tris.cols(); ++i)
+        {
+            matd_t uv(2, 3), base(2, 2);
+            matd_t vert(3, 3);
+            tri_verts(nods, tris_.col(i), vert);
+            for (size_t j = 0; j < 3; ++j)
+            {
+                uv(0, j) = (vert.col(j) - O.col(i)).dot(T.col(i));
+                uv(1, j) = (vert.col(j) - O.col(i)).dot(B.col(i));
+            }
+            base.col(0) = uv.col(1) - uv.col(0);
+            base.col(1) = uv.col(2) - uv.col(0);
+            assert(fabs(base.determinant()) > 1e-8 && "bw98_stretch: triangle degenerate!");
+            base = base.inverse();
+            Dm_.col(i) = Map<VectorXd>(base.data(), 4, 1);
+        }
+    }
+
+    int bw98_stretch_energy::Val(const double *x, double *val) const
+    {
+        if (w_ == 0.0)
+            return 0;
+        // E = k/2 * C(i) * C(i) where C(i) = area * ( norm(Wu)-1)
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        double value_sum = 0;
+        double tmpval_sum = 0;
+        for (size_t i = 0; i < tris_.cols(); ++i)
+        {
+            // matd_t Ds(3, 2);
+            // Ds.col(0) = X.col(tris_(1, i)) - X.col(tris_(0, i));
+            // Ds.col(1) = X.col(tris_(2, i)) - X.col(tris_(0, i));
+
+            // matd_t Wu = Ds * Map<const matd_t>(&(Dm_(0, i)), 2, 2);
+            // Vector2d C;
+            // C(0) = (Wu.col(0).norm() - 1.0);
+            // C(1) = (Wu.col(1).norm() - 1.0);
+            // double value = 0.5 * area_[i] * C.dot(C);
+
+            matd_t vert(3, 3);
+            vert.col(0) = X.col(tris_(0, i));
+            vert.col(1) = X.col(tris_(1, i));
+            vert.col(2) = X.col(tris_(2, i));
+            double tmp_val = 0;
+            bw98_stretch_(&tmp_val, vert.data(), &Dm_(0, i), &area_[i]);
+            value_sum += tmp_val;
+            // if (value > 1e-8)
+            //     cout << tris_.col(i).transpose() << " value=" << value << " tmp_val=" << tmp_val << " err=" << fabs(value - tmp_val) << endl;
+        }
+        *val += w_ * value_sum;
+        return 0;
+    }
+
+    int bw98_stretch_energy::Gra(const double *x, double *gra) const
+    {
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        Map<matd_t> G(gra, 3, dof_ / 3);
+        for (size_t i = 0; i < tris_.cols(); ++i)
+        {
+            matd_t vert(3, 3);
+            vert.col(0) = X.col(tris_(0, i));
+            vert.col(1) = X.col(tris_(1, i));
+            vert.col(2) = X.col(tris_(2, i));
+            matd_t Grad = matd_t::Zero(3, 3);
+            bw98_stretch_jac_(Grad.data(), vert.data(), &Dm_(0, i), &area_[i]);
+            G.col(tris_(0, i)) += w_ * Grad.col(0);
+            G.col(tris_(1, i)) += w_ * Grad.col(1);
+            G.col(tris_(2, i)) += w_ * Grad.col(2);
+        }
+        return 0;
+    }
+
+    int bw98_stretch_energy::Hes(const double *x, std::vector<Eigen::Triplet<double>> *hes) const
+    {
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        for (size_t i = 0; i < tris_.cols(); ++i)
+        {
+            matd_t vert(3, 3);
+            vert.col(0) = X.col(tris_(0, i));
+            vert.col(1) = X.col(tris_(1, i));
+            vert.col(2) = X.col(tris_(2, i));
+            matd_t H = matd_t::Zero(9, 9);
+            bw98_stretch_hes_(H.data(), vert.data(), &Dm_(0, i), &area_[i]);
+
+            for (int p = 0; p < 9; ++p)
+            {
+                for (int q = 0; q < 9; ++q)
+                {
+                    int I = 3 * tris_(p / 3, i) + p % 3; // nod's p%3 dimension
+                    int J = 3 * tris_(q / 3, i) + q % 3;
+                    hes->emplace_back(I, J, H(p, q));
+                }
+            }
+        }
+        return 0;
+    }
+
+    bw98_shear_energy::bw98_shear_energy(const matd_t &nods, const mati_t &tris, const double w)
+        : dof_(nods.size()), w_(w), tris_(tris)
+    {
+        Dm_.resize(4, tris.cols());
+        area_.resize(tris.cols());
+        matd_t O(3, tris.cols()), N(3, tris.cols()), T(3, tris.cols()), B(3, tris.cols());
+        face_normal(nods, tris, N, false);
+        for (size_t i = 0; i < tris.cols(); ++i)
+        {
+            area_[i] = 0.5 * N.col(i).norm();
+            N.col(i).normalize();
+            O.col(i) = (nods.col(tris(0, i)) + nods.col(tris(1, i)) + nods.col(tris(2, i))) / 3.0;
+            T.col(i) = nods.col(tris(1, i)) - nods.col(tris(0, i));
+            T.col(i).normalize();
+            B.col(i) = cross(N.col(i), T.col(i));
+            B.col(i).normalize();
+        }
+
+        for (size_t i = 0; i < tris.cols(); ++i)
+        {
+            matd_t uv(2, 3), base(2, 2);
+            matd_t vert(3, 3);
+            tri_verts(nods, tris_.col(i), vert);
+            for (size_t j = 0; j < 3; ++j)
+            {
+                uv(0, j) = (vert.col(j) - O.col(i)).dot(T.col(i));
+                uv(1, j) = (vert.col(j) - O.col(i)).dot(B.col(i));
+            }
+            base.col(0) = uv.col(1) - uv.col(0);
+            base.col(1) = uv.col(2) - uv.col(0);
+            assert(fabs(base.determinant()) > 1e-8 && "bw98_stretch: triangle degenerate!");
+            base = base.inverse();
+            Dm_.col(i) = Map<VectorXd>(base.data(), 4, 1);
+        }
+    }
+
+    int bw98_shear_energy::Val(const double *x, double *val) const
+    {
+        if (w_ == 0.0)
+            return 0;
+        //  C(i) = area*( Wu'Wv )
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        double value_sum = 0;
+        double tmpval_sum = 0;
+        for (size_t i = 0; i < tris_.cols(); ++i)
+        {
+            matd_t vert(3, 3);
+            vert.col(0) = X.col(tris_(0, i));
+            vert.col(1) = X.col(tris_(1, i));
+            vert.col(2) = X.col(tris_(2, i));
+            double tmp_val = 0;
+            bw98_shear_(&tmp_val, vert.data(), &Dm_(0, i), &area_[i]);
+            value_sum += tmp_val;
+        }
+        *val += w_ * value_sum;
+        return 0;
+    }
+
+    int bw98_shear_energy::Gra(const double *x, double *gra) const
+    {
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        Map<matd_t> G(gra, 3, dof_ / 3);
+        for (size_t i = 0; i < tris_.cols(); ++i)
+        {
+            matd_t vert(3, 3);
+            vert.col(0) = X.col(tris_(0, i));
+            vert.col(1) = X.col(tris_(1, i));
+            vert.col(2) = X.col(tris_(2, i));
+            matd_t Grad = matd_t::Zero(3, 3);
+            bw98_shear_jac_(Grad.data(), vert.data(), &Dm_(0, i), &area_[i]);
+            G.col(tris_(0, i)) += w_ * Grad.col(0);
+            G.col(tris_(1, i)) += w_ * Grad.col(1);
+            G.col(tris_(2, i)) += w_ * Grad.col(2);
+        }
+        return 0;
+    }
+
+    int bw98_shear_energy::Hes(const double *x, std::vector<Eigen::Triplet<double>> *hes) const
+    {
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        for (size_t i = 0; i < tris_.cols(); ++i)
+        {
+            matd_t vert(3, 3);
+            vert.col(0) = X.col(tris_(0, i));
+            vert.col(1) = X.col(tris_(1, i));
+            vert.col(2) = X.col(tris_(2, i));
+            matd_t H = matd_t::Zero(9, 9);
+            bw98_shear_hes_(H.data(), vert.data(), &Dm_(0, i), &area_[i]);
+
+            for (int p = 0; p < 9; ++p)
+            {
+                for (int q = 0; q < 9; ++q)
+                {
+                    int I = 3 * tris_(p / 3, i) + p % 3; // nod's p%3 dimension
+                    int J = 3 * tris_(q / 3, i) + q % 3;
+                    hes->emplace_back(I, J, H(p, q));
+                }
+            }
+        }
+        return 0;
+    }
+
+    surf_bending_potential::surf_bending_potential(const mati_t &diams, const matd_t &nods, const double w)
+        : dof_(nods.size()), diams_(diams), w_(w)
+    {
+        len_.resize(diams_.cols());
+        angle_.resize(diams_.cols());
+        area_.resize(diams_.cols());
+
+        for (size_t i = 0; i < diams_.cols(); ++i)
+        {
+            matd_t vert(3, 4);
+            vert.col(0) = nods.col(diams_(0, i));
+            vert.col(1) = nods.col(diams_(1, i));
+            vert.col(2) = nods.col(diams_(2, i));
+            vert.col(3) = nods.col(diams_(3, i));
+            calc_edge_length_(&len_[i], &vert(0, 1));
+            calc_dih_angle_(&angle_[i], vert.data());
+            area_[i] = calc_tri_area(vert.leftCols(3)) + calc_tri_area(vert.rightCols(3));
+        }
+    }
+
+    int surf_bending_potential::Val(const double *x, double *val) const
+    {
+        using namespace Eigen;
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        for (size_t i = 0; i < diams_.cols(); ++i)
+        {
+            matd_t vert(3, 4);
+            vert.col(0) = X.col(diams_(0, i));
+            vert.col(1) = X.col(diams_(1, i));
+            vert.col(2) = X.col(diams_(2, i));
+            vert.col(3) = X.col(diams_(3, i));
+            double value = 0;
+            surf_bending_(&value, vert.data(), &angle_[i], &len_[i], &area_[i]);
+            *val += w_ * value;
+        }
+        return 0;
+    }
+
+    int surf_bending_potential::Gra(const double *x, double *gra) const
+    {
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        Map<matd_t> G(gra, 3, dof_ / 3);
+        for (size_t i = 0; i < diams_.cols(); ++i)
+        {
+            matd_t vert(3, 4);
+            vert.col(0) = X.col(diams_(0, i));
+            vert.col(1) = X.col(diams_(1, i));
+            vert.col(2) = X.col(diams_(2, i));
+            vert.col(3) = X.col(diams_(3, i));
+            matd_t Grad = matd_t::Zero(3, 4);
+            surf_bending_jac_(Grad.data(), vert.data(), &angle_[i], &len_[i], &area_[i]);
+            G.col(diams_(0, i)) += w_ * Grad.col(0);
+            G.col(diams_(1, i)) += w_ * Grad.col(1);
+            G.col(diams_(2, i)) += w_ * Grad.col(2);
+            G.col(diams_(3, i)) += w_ * Grad.col(3);
+        }
+        return 0;
+    }
+
+    int surf_bending_potential::Hes(const double *x, vector<Triplet<double>> *hes) const
+    {
+        RETURN_WITH_COND_TRUE(w_ == 0.0);
+        Map<const matd_t> X(x, 3, dof_ / 3);
+        for (size_t i = 0; i < diams_.cols(); ++i)
+        {
+            matd_t vert(3, 4);
+            vert.col(0) = X.col(diams_(0, i));
+            vert.col(1) = X.col(diams_(1, i));
+            vert.col(2) = X.col(diams_(2, i));
+            vert.col(3) = X.col(diams_(3, i));
+            matd_t H = matd_t::Zero(12, 12);
+            surf_bending_hes_(H.data(), vert.data(), &angle_[i], &len_[i], &area_[i]);
+            for (int p = 0; p < 12; ++p)
+            {
+                for (int q = 0; q < 12; ++q)
+                {
+                    int I = 3 * diams_(p / 3, i) + p % 3; // nod's p%3 dimension
+                    int J = 3 * diams_(q / 3, i) + q % 3;
+                    hes->emplace_back(I, J, H(p, q));
+                }
+            }
+        }
+        return 0;
+    }
 }

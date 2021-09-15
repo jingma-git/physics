@@ -1,0 +1,31 @@
+load("jacob.mac")$
+load("mj_fortran2.mac")$
+
+optimprefix : tt$
+
+f: openw("energy.f90")$
+
+/*BW98 Large step cloth simulation*/
+block(
+	[X, invUV, area],
+	X: genmatrix(X, 3, 3),
+	invUV: genmatrix(invUV, 2, 2),
+	area: genmatrix(area, 1, 1),
+	
+	bw98_stretch(X, invUV, area) := block(
+		[E, W],
+		E: addcol(col(X, 2)-col(X, 1), col(X, 3)-col(X, 1)),
+		W: E.invUV,
+		0.5 * area * ((NORM(col(W, 1))-1.0)^2 + (NORM(col(W, 1))-1.0)^2)
+	),
+	with_stdout(f, val_jac_hes_to_f90(bw98_stretch, [X, invUV, area])),
+	return()
+)$
+
+close(f)$
+
+TEST():=block(
+	X: matrix([0, 1, 0], [0, 0, 1], [0, 0, 0]),
+	invUV: matrix([1, 0], [0, 1]),
+	apply(bw98_stretch, [X, invUV, 1.0])
+)$
