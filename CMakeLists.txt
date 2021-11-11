@@ -58,5 +58,10 @@ target_link_libraries(clothsim magic)
 add_executable(clothbw clothbw.cpp jsoncpp.cpp)
 target_link_libraries(clothbw magic)
 
-list(APPEND CMAKE_MODULE_PATH external/Bartels/cmake)
+set(bartels_ROOT external/Bartels)
+set(bartels_INCLUDE_DIR ${bartels_ROOT}/include)
 include_directories(bartels_INCLUDE_DIR)
+message("-- bartels_INCLUDE_DIR ${bartels_INCLUDE_DIR}")
+
+add_executable(bartel bartel.cpp)
+target_include_directories(bartel PUBLIC ${bartels_INCLUDE_DIR})
