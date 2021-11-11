@@ -35,7 +35,7 @@ add_executable(main "main.cpp")
 target_link_libraries(main Eigen3::Eigen)
 
 add_executable(test_lapack "test_lapack.cpp")
-target_link_libraries(test_lapack lapack)
+target_link_libraries(test_lapack lapack blas)
 
 
 add_executable(cons_law "constitutive_law.cpp")
@@ -57,3 +57,6 @@ target_link_libraries(clothsim magic)
 
 add_executable(clothbw clothbw.cpp jsoncpp.cpp)
 target_link_libraries(clothbw magic)
+
+list(APPEND CMAKE_MODULE_PATH external/Bartels/cmake)
+include_directories(bartels_INCLUDE_DIR)
